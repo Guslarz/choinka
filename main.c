@@ -16,7 +16,7 @@ typedef unsigned int count_t;
 //  input
 size_t n, gnomeCount;
 count_t deliveryCount;
-limit_t *gnomesLimit, *decorationsLimit;
+limit_t *gnomesLimit, *decorationsLimit, stashLimit;
 //  variables
 count_t stash = 0, leftToHang;
 limit_t *gnomesOnLevel;
@@ -66,7 +66,7 @@ int main()
 
 void input()
 {
-    scanf("%zu %zu %u", &n, &gnomeCount, &deliveryCount);
+    scanf("%zu %zu %u %u", &n, &gnomeCount, &deliveryCount, &stashLimit);
     
     if ((gnomesLimit = (limit_t*)malloc(n * sizeof(limit_t))) == NULL) {
         perror("Dynamiczna alokacja k");
@@ -180,7 +180,9 @@ void* santaClaus(void *arg)
 void deliverDecorations()
 {
     pthread_mutex_lock(&stashMutex);
-    stash += deliveryCount;
+    if (stash + deliveryCount > stashLimit)
+        stash += stashLimit - deliveryCount;
+    else stash += deliveryCount;
     pthread_mutex_unlock(&stashMutex);
     pthread_cond_broadcast(&deliveryCond);
 }
