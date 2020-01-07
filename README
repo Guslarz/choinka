@@ -1,0 +1,17 @@
+CHOINKA
+
+Stanisław Kaczmarek
+141240     grupa I5
+
+
+KOMPILACJA
+Kompilacji kodu dokonać można poprzez komendę `make` lub `make all`.
+
+URUCHOMIENIE
+Projekt kompiluje się do pliku `run` (uruchomienie przez `./run`) i wczytuje dane ze standardowego wejścia.
+Potrzebne dane to:
+- 3 liczby rozdzielone spacjami, reprezentujące kolejno liczbę poziomów (N), liczbę skrzatów i liczbę ozdób dostarczanych przez Mikołaja za jednym razem
+- N liczb, z których i-ta reprezentuje maksymalną liczbę skrzatów na poziomie i
+- N liczb, z których i-ta reprezentuje maksymalną liczbę ozdób na poziomie i
+
+KURWAAA limit na ozdoby na 0
