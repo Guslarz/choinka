@@ -5,4 +5,31 @@ Stanisław Kaczmarek
 
 
 1.  PARAMETRY
-Wartości parametrów wczytywane są ze standardowego wejścia
+Wartości parametrów wczytywane są ze standardowego wejścia, co omówione jest w pliku `README`. Dodatkowo na górze pliku `main.c` znajdują się dwa makra, w dalszej części programu będące argumentami funkcji `sleep`. `SANTA_SLEEP` odpowiada czasowi poświęcanemu przez Mikołaja na podróż po nowe ozdoby i powrót, natomiast `GNOME_SLEEP` - wieszaniu ozdoby przez skrzata.
+
+2.  WĄTKI
+Zarówno Święty Mikołaj, jak i każdy ze skrzatów reprezentowani są przez osobne wątki, a najważniejsze z wykonywanych przez nie działań opisywane są przez wypisywane na wyjście komunikaty. Program oczekuje na zakończenie się każdego z wątków.
+
+2.1 ŚWIĘTY MIKOŁAJ
+Zadaniem wątku Świętego Mikołaja jest dostarczanie ozdób w nieskończonej pętli, aż nie zostanie zakączony w wyniku rozwieszenia wszystkich ozdób.
+
+2.1.1   DOSTARCZANIE OZDÓB
+Póki nie wszystkie ozdoby są rozwieszone, co pewien czas dostarcza on nowe. Czas poświęcony przez niego na podróż po ozdoby i z powrotem przedstawia wspomniana wcześniej instrukcja `sleep(SANTA_SLEEP)`. Liczba ozdób na poziomie 0 przechowywana jest w zmiennej, a skoro zmieniana może być zarówno przez dostarczającego nowe ozdoby Mikołaja, jak i odbierające ozdoby skrzaty potrzebny był mutex. Dodatkowo Mikołaja interesuje nieprzekroczenie ograniczenia na ilość ozdób na poziomie 0. Po przywiezieniu nowej partii ozdób działa on w pętli, tak długo, aż nie pozbędzie się wszystkich przywiezionych ozdób, tj. nie zostawi ich na poziomie 0. Gdy poziom 0 jest pełny Mikołaj czeka na sygnał na zmiennej warunkowej od któregoś ze skrzatów, oznaczający odebranie ozdoby, a więc zwolnienie miejsca. Gdy jest miejsce Mikołaj odkłada tyle ozdób ile może, jednocześnie unikając przekroczenia limitu. Po każdym dołożeniu ozdób Mikołaj wysyła sygnał do wszystkich skrzatów oczekujących na zmiennej warunkowej w wyniku próby pobrania ozdoby z pustego poziomu 0. Nie jest to ta sama zmienna warunkowa, na której czeka Mikołaj.
+
+2.1.2   KOMUNIKATY
+Mikołaj informuje gdy przyjeżdża z nowymi ozdobami, gdy zostawia część lub wszystkie na poziomie 0 i gdy odjeżdża po kolejne.
+
+2.2 SKRZATY
+Zadaniem każdego skrzata jest odbiór jednej ozdoby z poziomu 0, wejście wyżej w celu znalezienia miejsca dla niej, powieszenie jej i zejście po kolejną. Skrzat powtarza te czynności w nieskończnoej pętli, jednak to on wykrywa także rozwieszenie wszystkich ozdób, a w konsekwencji - koniec programu.
+
+2.2.1   ODBIÓR OZDOBY
+Synchronizacja skrzatów i Mikołaja na tym etapie opisana jest w punkcie `DOSTARCZANIE OZDÓB`. Sam fakt posiadania ozdoby przez skrzata nie jest przechowywany w żadnej zmiennej, można go wywnioskować z obecnie wykonywanej przez niego funkcji. Każdy skrzat ma przyznawane unikalny numer `id`, zaczynając od 0 z krokiem o 1.
+
+2.2.2   PORUSZANIE SIĘ MIĘDZY POZIOMAMI
+Skrzat musi w każdym momencie wiedzieć na którym poziomie obecnie się znajduje. Informacja ta przechowywana jest w dynamicznej tablicy, pod indeksem równym numerowi `id` danego skrzata. Aby nie przekroczyć limitu potrzebna była także tablica przechowująca liczbę skrzatów na poziomach <1, N> i tablica mutexów, każdy odpowiadający jednemu poziomowi. Aby przejść między poziomami skrzat musi zablokować mutex odpowiadający poziomowi obecnemu i temu, na który się udaje. Wyjątkiem jest poziom 0, nie posiadający odpowiadającego mutexu, ani nie przechowujący informacji o znajdujących się na nim skrzatach. Skrzaty wspinające się w celu znalezienia miejsca na ozdobę mogą ustąpić miejsca schodzącym skrzatom, tj. zejść poziom niżej, gdy nie są w stanie wejść wyżej. 
+
+2.2.3   WIESZANIE OZDOBY
+Skrzat wiesza ozdobę na pierwszym wolnym miejscu jakie znajdzie. Związana z tym jest tablica przechowująca liczbę wolnych miejsc na danym poziomie, odpowiadająca jej tablica muteksów, zmienna przechowująca sumę wolnych miejsc ze wszystkich poziomów i mutex jej przyporządkowany. Mutexy te są niezbędne w celu uniknięcia zmiany zmiany którejś z wartości przez 2 skrzaty naraz.
+
+2.2.4   KONIEC PROGRAMU
+Wspomniana wyżej zmienna przechowująca informacje o sumie wolnych miejsc pozwala skrzatowi wieszającemu ostatnią ozdobę zauważyć to i stwierdzić, że należy zakończyć wszystkie wątki.
