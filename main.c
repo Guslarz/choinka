@@ -191,9 +191,10 @@ void* santaClaus(void *arg)
         printf("Mikolaj przyjezdza\n");
         deliverDecorations();
         sleep(SANTA_SLEEP);
-        printf("Mikolaj odjezdza\n", leftToHang);
+        printf("Mikolaj odjezdza\n");
     }
     finishGnomes();
+    return NULL;
 }
 
 
