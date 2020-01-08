@@ -10,8 +10,10 @@ Kompilacji kodu dokonać można poprzez komendę `make` lub `make all`.
 URUCHOMIENIE
 Projekt kompiluje się do pliku `run` (uruchomienie przez `./run`) i wczytuje dane ze standardowego wejścia.
 Potrzebne dane to:
-- 3 liczby rozdzielone spacjami, reprezentujące kolejno liczbę poziomów (N), liczbę skrzatów i liczbę ozdób dostarczanych przez Mikołaja za jednym razem
+- 4 liczby rozdzielone spacjami, reprezentujące kolejno liczbę poziomów (N), liczbę skrzatów, liczbę ozdób dostarczanych przez Mikołaja za jednym razem i limit ozdób na poziomie 0
 - N liczb, z których i-ta reprezentuje maksymalną liczbę skrzatów na poziomie i
 - N liczb, z których i-ta reprezentuje maksymalną liczbę ozdób na poziomie i
+Pozwala to uruchomić kod poleceniem `./run < test.txt` przekierowując zawartość pliku na wejście. Plik `test.txt` dołączony jest do programu i zawiera przykładowe dane pozwalające zweryfikować poprawność działania rozwiązania problemu.
 
-KURWAAA limit na ozdoby na 0
+OPIS PLIKÓW Z KODEM
+Całość kodu zawiera się w pliku `main.c`.

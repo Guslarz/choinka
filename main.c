@@ -4,8 +4,8 @@
 #include <unistd.h>
 #include <stdbool.h>
 
-#define SANTA_SLEEP 2
-#define GNOME_SLEEP 1
+#define SANTA_SLEEP 1
+#define GNOME_SLEEP 2
 
 typedef unsigned int limit_t;
 typedef unsigned int count_t;
@@ -24,10 +24,10 @@ int *currentLevel;
 //  IDs 
 pthread_t santaClausID, *gnomeID;
 //  mutexes
-pthread_mutex_t stashMutex, leftToHangMutex, gnomesOnLevelMutex,
-    decorationsLimitMutex;
+pthread_mutex_t stashMutex, leftToHangMutex, *gnomesOnLevelMutex,
+    *decorationsLimitMutex;
 //  conds
-pthread_cond_t deliveryCond;
+pthread_cond_t deliveryCond, fullStashCond;
 
 
 /*
@@ -60,6 +60,7 @@ int main()
     input();
     init();
     join();
+    printf("Koniec\n");
     delete();
 }
 
@@ -119,18 +120,34 @@ void init()
         perror("Utworzenie mutexu pozostalych do powieszenia ozdob");
         exit(1);
     }
-    if (pthread_mutex_init(&gnomesOnLevelMutex, NULL) != 0) {
-        perror("Utworzenie mutexu skrzatow na poziomie");
+    if ((gnomesOnLevelMutex = (pthread_mutex_t*)malloc(n * 
+    sizeof(pthread_mutex_t))) == NULL) {
+        perror("Alokacja tablicy mutexow skrzatow na poziomie");
         exit(1);
     }
-    if (pthread_mutex_init(&decorationsLimitMutex, NULL) != 0) {
-        perror("Utworzenie mutexu ozdob na poziomie");
+    if ((decorationsLimitMutex = (pthread_mutex_t*)malloc(n *
+    sizeof(pthread_mutex_t))) == NULL) {
+        perror("Alokacja tablicy mutexow ozdob do rozwieszenia");
         exit(1);
+    }
+    for (size_t i = 0; i < n; ++i) {
+        if (pthread_mutex_init(gnomesOnLevelMutex + i, NULL) != 0) {
+            perror("Utworzenie mutexu skrzatow na poziomie");
+            exit(1);
+        }
+        if (pthread_mutex_init(decorationsLimitMutex + i, NULL) != 0) {
+            perror("Utworzenie mutexu ozdob na poziomie");
+            exit(1);
+        }
     }
     
     //conds
     if (pthread_cond_init(&deliveryCond, NULL) != 0) {
         perror("Utworzenie zmiennej warunkowej dostawy");
+        exit(1);
+    }
+    if (pthread_cond_init(&fullStashCond, NULL) != 0) {
+        perror("Utworzenie zmiennej warunkowej pelnego poziomu 0");
         exit(1);
     }
 
@@ -163,15 +180,18 @@ void delete()
     free(gnomeID);
     free(gnomesOnLevel);
     free(currentLevel);
+    free(gnomesOnLevelMutex);
+    free(decorationsLimitMutex);
 }
 
 
 void* santaClaus(void *arg)
 {
     while (notAllDecorations()) {
+        printf("Mikolaj przyjezdza\n");
         deliverDecorations();
         sleep(SANTA_SLEEP);
-        printf("Brakuje %u ozdob\n", leftToHang);
+        printf("Mikolaj odjezdza\n", leftToHang);
     }
     finishGnomes();
 }
@@ -179,12 +199,22 @@ void* santaClaus(void *arg)
 
 void deliverDecorations()
 {
-    pthread_mutex_lock(&stashMutex);
-    if (stash + deliveryCount > stashLimit)
-        stash += stashLimit - deliveryCount;
-    else stash += deliveryCount;
-    pthread_mutex_unlock(&stashMutex);
-    pthread_cond_broadcast(&deliveryCond);
+    count_t currentDelivery = deliveryCount, delivered;
+    while (currentDelivery > 0) {
+        pthread_mutex_lock(&stashMutex);
+        if (stash == stashLimit) {
+            printf("Mikolaj czeka\n");
+            pthread_cond_wait(&fullStashCond, &stashMutex);
+        }
+        delivered = stash + currentDelivery > stashLimit ?
+            stashLimit - stash : currentDelivery;
+        printf("Mikolaj daje %u z %u ozdob\n",
+            delivered, currentDelivery);
+        stash += delivered;
+        currentDelivery -= delivered;
+        pthread_mutex_unlock(&stashMutex);
+        pthread_cond_broadcast(&deliveryCond);
+    }
 }
 
 
@@ -213,11 +243,12 @@ void* gnome(void *arg)
 
     while (1) {
         takeDecoration();
-        printf("%zu bierze ozdobe\n", id);
+        printf("Skrzat %zu bierze ozdobe\n", id);
         hangDecoration(id);
-        printf("%zu wiesza na poziomie %d\n", id, currentLevel[id]);
+        printf("Skrzat %zu wiesza na poziomie %d\n", 
+            id, currentLevel[id]);
         goForNext(id);
-        printf("%zu czeka na kolejna\n", id);
+        printf("Skrzat %zu czeka na kolejna\n", id);
     }
 }
 
@@ -229,6 +260,7 @@ void takeDecoration()
         pthread_cond_wait(&deliveryCond, &stashMutex);
     --stash;
     pthread_mutex_unlock(&stashMutex);
+    pthread_cond_signal(&fullStashCond);
 }
 
 
@@ -239,16 +271,24 @@ bool goUp(size_t id)
     if (next == n)
         return false;
 
-    pthread_mutex_lock(&gnomesOnLevelMutex);
+    pthread_mutex_lock(gnomesOnLevelMutex + next);
+    if (next != 0)
+        pthread_mutex_lock(gnomesOnLevelMutex + current);
+
     if (gnomesOnLevel[next] == gnomesLimit[next]) {
-        pthread_mutex_unlock(&gnomesOnLevelMutex);
+        pthread_mutex_unlock(gnomesOnLevelMutex + next);
+        if (next != 0)
+            pthread_mutex_unlock(gnomesOnLevelMutex + current);
         return false;
     }
-    if (next != 0) 
-        --gnomesOnLevel[current];
+
+    ++currentLevel[id];
     ++gnomesOnLevel[next];
-    currentLevel[id] = next;
-    pthread_mutex_unlock(&gnomesOnLevelMutex);
+    if (next != 0) { 
+        --gnomesOnLevel[current];
+        pthread_mutex_unlock(gnomesOnLevelMutex + current);
+    }
+    pthread_mutex_unlock(gnomesOnLevelMutex + next);
     return true;
 }
 
@@ -260,21 +300,24 @@ bool goDown(size_t id)
 
     const size_t current = currentLevel[id], 
         next = current - 1;
-    pthread_mutex_lock(&gnomesOnLevelMutex);
+    pthread_mutex_lock(gnomesOnLevelMutex + current);
     if (current == 0) {
-        --gnomesOnLevel[current];
+        --gnomesOnLevel[0];
         currentLevel[id] = -1;
-        pthread_mutex_unlock(&gnomesOnLevelMutex);
+        pthread_mutex_unlock(gnomesOnLevelMutex);
         return true;
     }
+    pthread_mutex_lock(gnomesOnLevelMutex + next);
     if (gnomesOnLevel[next] == gnomesLimit[next]) {
-        pthread_mutex_unlock(&gnomesOnLevelMutex);
+        pthread_mutex_unlock(gnomesOnLevelMutex + next);
+        pthread_mutex_unlock(gnomesOnLevelMutex + current);
         return false;
     }
+    --currentLevel[id];
     --gnomesOnLevel[current];
     ++gnomesOnLevel[next];
-    currentLevel[id] = next;
-    pthread_mutex_unlock(&gnomesOnLevelMutex);
+    pthread_mutex_unlock(gnomesOnLevelMutex + next);
+    pthread_mutex_unlock(gnomesOnLevelMutex + current);
     return true;
 }
 
@@ -282,18 +325,21 @@ bool goDown(size_t id)
 void hangDecoration(size_t id)
 {
     while(1) {
-        if (goUp(id)) {
-            pthread_mutex_lock(&decorationsLimitMutex);
+        if (goUp(id) && currentLevel[id] != -1) {
+            pthread_mutex_lock(decorationsLimitMutex + 
+                currentLevel[id]);
             if (decorationsLimit[currentLevel[id]]) {
                 --decorationsLimit[currentLevel[id]];
-                pthread_mutex_unlock(&decorationsLimitMutex);
+                pthread_mutex_unlock(decorationsLimitMutex +
+                    currentLevel[id]);
                 pthread_mutex_lock(&leftToHangMutex);
                 --leftToHang;
                 pthread_mutex_unlock(&leftToHangMutex);
                 sleep(GNOME_SLEEP);
                 return;
             }
-            pthread_mutex_unlock(&decorationsLimitMutex);
+            pthread_mutex_unlock(decorationsLimitMutex +
+                currentLevel[id]);
         } else goDown(id);
     }
 }
