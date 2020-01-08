@@ -42,8 +42,6 @@ void delete();
  */
 void* santaClaus(void*);
 void deliverDecorations();
-bool notAllDecorations();
-void finishGnomes();
 /*
  *  GNOME
  */
@@ -53,12 +51,14 @@ bool goUp(size_t);
 bool goDown(size_t);
 void hangDecoration(size_t);
 void goForNext(size_t);
+void cancelThreads(size_t);
 
 
 int main()
 {
     input();
     init();
+
     join();
     printf("Koniec\n");
     delete();
@@ -187,14 +187,14 @@ void delete()
 
 void* santaClaus(void *arg)
 {
-    while (notAllDecorations()) {
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+
+    while (1) {
         printf("Mikolaj przyjezdza\n");
         deliverDecorations();
         sleep(SANTA_SLEEP);
         printf("Mikolaj odjezdza\n");
     }
-    finishGnomes();
-    return NULL;
 }
 
 
@@ -216,24 +216,6 @@ void deliverDecorations()
         pthread_mutex_unlock(&stashMutex);
         pthread_cond_broadcast(&deliveryCond);
     }
-}
-
-
-bool notAllDecorations()
-{
-    bool value;
-    pthread_mutex_lock(&leftToHangMutex);
-    value = leftToHang != 0;
-    pthread_mutex_unlock(&leftToHangMutex);
-    return value;
-}
-
-
-void finishGnomes()
-{
-    for (size_t i = 0; i < gnomeCount; ++i)
-        pthread_cancel(gnomeID[i]);
-    pthread_cond_broadcast(&deliveryCond);
 }
 
 
@@ -334,7 +316,8 @@ void hangDecoration(size_t id)
                 pthread_mutex_unlock(decorationsLimitMutex +
                     currentLevel[id]);
                 pthread_mutex_lock(&leftToHangMutex);
-                --leftToHang;
+                if (--leftToHang == 0)
+                    cancelThreads(id);
                 pthread_mutex_unlock(&leftToHangMutex);
                 sleep(GNOME_SLEEP);
                 return;
@@ -350,4 +333,13 @@ void goForNext(size_t id)
 {
     while(currentLevel[id] != -1)
         goDown(id);
+}
+
+
+void cancelThreads(size_t id)
+{
+    pthread_cancel(santaClausID);
+    for (size_t i = 0; i < gnomeCount; ++i) if (i != id)
+        pthread_cancel(gnomeID[i]);
+    pthread_exit(0);
 }
