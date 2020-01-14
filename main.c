@@ -18,13 +18,13 @@ size_t n, gnomeCount;
 count_t deliveryCount;
 limit_t *gnomesLimit, *decorationsLimit, stashLimit;
 //  variables
-count_t stash = 0, leftToHang;
+count_t stash = 0;
 limit_t *gnomesOnLevel;
 int *currentLevel;
 //  IDs 
 pthread_t santaClausID, *gnomeID;
 //  mutexes
-pthread_mutex_t stashMutex, leftToHangMutex, *gnomesOnLevelMutex,
+pthread_mutex_t stashMutex, *gnomesOnLevelMutex,
     *decorationsLimitMutex;
 //  conds
 pthread_cond_t deliveryCond, fullStashCond;
@@ -98,11 +98,6 @@ void input()
 
 void init()
 {
-    //  variables
-    leftToHang = 0;
-    for (size_t i = 0; i < n; ++i)
-        leftToHang += decorationsLimit[i];
-
     gnomesOnLevel = (limit_t*)malloc(n * sizeof(limit_t));
     for (size_t i = 0; i < n; ++i)
         gnomesOnLevel[i] = 0;
@@ -114,10 +109,6 @@ void init()
     //  mutexes
     if (pthread_mutex_init(&stashMutex, NULL) != 0) {
         perror("Utworzenie mutexu ozdob na poziomie 0");
-        exit(1);
-    }
-    if (pthread_mutex_init(&leftToHangMutex, NULL) != 0) {
-        perror("Utworzenie mutexu pozostalych do powieszenia ozdob");
         exit(1);
     }
     if ((gnomesOnLevelMutex = (pthread_mutex_t*)malloc(n * 
@@ -228,8 +219,6 @@ void* gnome(void *arg)
         takeDecoration();
         printf("Skrzat %zu bierze ozdobe\n", id);
         hangDecoration(id);
-        printf("Skrzat %zu wiesza na poziomie %d\n", 
-            id, currentLevel[id]);
         goForNext(id);
         printf("Skrzat %zu czeka na kolejna\n", id);
     }
@@ -312,13 +301,28 @@ void hangDecoration(size_t id)
             pthread_mutex_lock(decorationsLimitMutex + 
                 currentLevel[id]);
             if (decorationsLimit[currentLevel[id]]) {
-                --decorationsLimit[currentLevel[id]];
-                pthread_mutex_unlock(decorationsLimitMutex +
-                    currentLevel[id]);
-                pthread_mutex_lock(&leftToHangMutex);
-                if (--leftToHang == 0)
-                    cancelThreads(id);
-                pthread_mutex_unlock(&leftToHangMutex);
+                printf("Skrzat %zu wiesza na poziomie %d\n", 
+                    id, currentLevel[id]);
+                if (--decorationsLimit[currentLevel[id]])
+                    pthread_mutex_unlock(decorationsLimitMutex +
+                        currentLevel[id]);
+                else {
+                    pthread_mutex_unlock(decorationsLimitMutex +
+                        currentLevel[id]);
+                    size_t level;
+                    for (level = currentLevel[id] + 1; level < n; ++level) {
+                        pthread_mutex_lock(decorationsLimitMutex +
+                            level);
+                        if (decorationsLimit[level])
+                            pthread_mutex_unlock(decorationsLimitMutex +
+                                level);
+                            break;
+                        pthread_mutex_unlock(decorationsLimitMutex +
+                            level);
+                    }
+                    if (level == n)
+                        cancelThreads(id);
+                }
                 sleep(GNOME_SLEEP);
                 return;
             }
