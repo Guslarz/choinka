@@ -316,7 +316,7 @@ void hangDecoration(size_t id)
                         if (decorationsLimit[level])
                             pthread_mutex_unlock(decorationsLimitMutex +
                                 level);
-                            break;
+                        break;
                         pthread_mutex_unlock(decorationsLimitMutex +
                             level);
                     }
