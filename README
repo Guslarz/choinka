@@ -5,7 +5,7 @@ Stanisław Kaczmarek
 
 
 KOMPILACJA
-Kompilacji kodu dokonać można poprzez komendę `make` lub `make all`.
+Kompilacji kodu dokonać można poprzez komendę `make` lub `make all`. Usunięcie plików binarnych następuje po komendzie `make clean`.
 
 URUCHOMIENIE
 Projekt kompiluje się do pliku `run` (uruchomienie przez `./run`) i wczytuje dane ze standardowego wejścia.
